@@ -128,3 +128,79 @@
     @apply font-sans;
   }
 }
+
+/* Custom Cursor */
+.cursor {
+  pointer-events: none;
+  position: fixed;
+  top: 0;
+  left: 0;
+  height: 10px;
+  width: 10px;
+  background-color: #000000;
+  border-radius: 50%;
+  z-index: 99999;
+  transform: translate(-50%, -50%) scale(1);
+  transition: opacity 0.3s ease,
+              background-color 0.2s ease,
+              border-color 0.2s ease,
+              box-shadow 0.2s ease,
+              transform 0.15s ease;
+}
+
+/* White background -> Black circle */
+.cursor.cursor-on-white {
+  background-color: #000000 !important;
+  border: none !important;
+  box-shadow: none !important;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+}
+
+/* Blue background / element -> Yellow circle */
+.cursor.cursor-on-blue {
+  background-color: #FACC15 !important;
+  border: 1px solid rgba(234, 179, 8, 0.7) !important;
+  box-shadow: 0 0 6px rgba(250, 204, 21, 0.5) !important;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+}
+
+/* Yellow / Gold background -> Blue circle */
+.cursor.cursor-on-yellow {
+  background-color: #0066FF !important;
+  border: 1px solid rgba(0, 102, 255, 0.7) !important;
+  box-shadow: 0 0 6px rgba(0, 102, 255, 0.5) !important;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+}
+
+/* Image -> Transparent like color with fine border */
+.cursor.cursor-on-image {
+  background-color: rgba(255, 255, 255, 0.35) !important;
+  border: 1px solid rgba(255, 255, 255, 0.85) !important;
+  backdrop-filter: blur(2px) !important;
+  -webkit-backdrop-filter: blur(2px) !important;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.25) !important;
+}
+
+/* Dark background -> White circle */
+.cursor.cursor-on-dark {
+  background-color: #ffffff !important;
+  border: none !important;
+  box-shadow: 0 0 4px rgba(255, 255, 255, 0.4) !important;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+}
+
+/* Hidden state (before first movement or when cursor leaves window) */
+.cursor.cursor-hidden {
+  opacity: 0;
+}
+
+/* Hide on touch devices */
+@media (hover: none) and (pointer: coarse) {
+  .cursor {
+    display: none !important;
+  }
+}
