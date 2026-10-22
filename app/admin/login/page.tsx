@@ -230,7 +230,7 @@ export default function LoginPage() {
 
           overflow-hidden
 
-          bg-[#C2410C]
+          bg-[#daa732]
 
           p-[32px]
 
@@ -706,7 +706,7 @@ export default function LoginPage() {
 
                   rounded-[16px]
 
-                  bg-[#EA580C]
+                  bg-[#daa732]
 
                   text-[15px]
                   font-medium
@@ -716,7 +716,7 @@ export default function LoginPage() {
                   transition-all
                   duration-500
 
-                  hover:bg-[#EA580C]
+                  hover:bg-[#daa732]
                   hover:shadow-[0_18px_40px_rgba(234,88,12,0.35)]
 
                   sm:mt-[30px]
@@ -779,7 +779,7 @@ export default function LoginPage() {
                         border-white
                         border-t-transparent
 
-                        group-hover:border-[#EA580C]
+                        group-hover:border-[#daa732]
                       "
                     />
                   ) : (
@@ -789,7 +789,7 @@ export default function LoginPage() {
                           transition-all
                           duration-500
 
-                          group-hover:text-[#EA580C]
+                          group-hover:text-[#daa732]
                         "
                       >
                         Login To Dashboard
@@ -804,7 +804,7 @@ export default function LoginPage() {
                           duration-500
 
                           group-hover:translate-x-[4px]
-                          group-hover:text-[#EA580C]
+                          group-hover:text-[#daa732]
                         "
                       />
                     </>
