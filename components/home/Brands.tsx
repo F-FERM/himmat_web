@@ -1,38 +1,67 @@
 "use client";
-import { useEffect, useRef, useState } from "react";
+import api from "@/lib/axios";
 import Image from "next/image";
-import client1 from "../../public/images/home/client-1.jpg";
-import client2 from "../../public/images/home/client-2.jpg";
-import client3 from "../../public/images/home/client-3.jpg";
-import client4 from "../../public/images/home/client-4.jpg";
-import client5 from "../../public/images/home/client-5.jpg";
-import client6 from "../../public/images/home/client-6.jpg";
-import client7 from "../../public/images/home/client-7.jpg";
-import client8 from "../../public/images/home/client-8.jpg";
-import client9 from "../../public/images/home/client-9.jpg";
-import client10 from "../../public/images/home/client-10.jpg";
+import { useEffect, useMemo, useState } from "react";
 
-const brands = [
-  { name: "Marafiq", src: client1 },
-  { name: "BFIM Trading Division", src: client2 },
-  { name: "NHME Group", src: client3 },
-  { name: "Saudi Electricity Company", src: client4 },
-  { name: "Kingdom of Saudi Arabia", src: client5 },
-  { name: "Wison", src: client6 },
-  { name: "Red Sea Global", src: client7 },
-  { name: "Aramco", src: client8 },
-  { name: "Sabic", src: client9 },
-  { name: "Saline Water Conversion Corporation", src: client10 },
-];
 
-/** Flips to true once the element scrolls into view (runs once), like WOW.js. */
-function useInView<T extends HTMLElement>(rootMargin = "0px 0px -60px 0px", threshold = 0.1) {
-  const ref = useRef<T>(null);
+const ENDPOINT = "/clients-page";
+const IMAGE_BASE_URL = process.env.NEXT_PUBLIC_BASE_URL || "";
+
+type ApiClient = {
+  _id?: string;
+  name: string;
+  logo: string;
+  logoAlt?: string;
+  link?: string;
+  order?: number;
+};
+
+type ApiClientsPage = { clients?: ApiClient[] };
+
+type Brand = { id: string; name: string; logo: string; logoAlt: string };
+
+const SECONDS_PER_LOGO = 4;
+
+const MIN_GROUP_WIDTH = 2400;
+const MIN_CARD_WIDTH = 240;
+
+function resolveImage(path: string): string {
+  if (!path) return "";
+  if (path.startsWith("http") || path.startsWith("data:")) return path;
+  return `${IMAGE_BASE_URL}${path.startsWith("/") ? path : `/${path}`}`;
+}
+
+function mapApiBrands(
+  data: ApiClientsPage | ApiClientsPage[] | null | undefined
+): Brand[] {
+  const doc = Array.isArray(data) ? data[0] : data;
+  return [...(doc?.clients ?? [])]
+    .sort((a, b) => (a.order ?? 0) - (b.order ?? 0))
+    .filter((c) => Boolean(c.logo) && Boolean(c.name))
+    .map((c, i) => ({
+      id: c._id || `${c.name}-${i}`,
+      name: c.name,
+      logo: resolveImage(c.logo),
+      logoAlt: c.logoAlt || c.name,
+    }));
+}
+
+
+function useInView<T extends HTMLElement>(
+  rootMargin = "0px 0px -60px 0px",
+  threshold = 0.1
+) {
+  const [el, setEl] = useState<T | null>(null);
   const [inView, setInView] = useState(false);
 
   useEffect(() => {
-    const el = ref.current;
     if (!el) return;
+
+    if (typeof IntersectionObserver === "undefined") {
+      setInView(true);
+      return;
+    }
+
     const io = new IntersectionObserver(
       ([entry]) => {
         if (entry.isIntersecting) {
@@ -44,19 +73,76 @@ function useInView<T extends HTMLElement>(rootMargin = "0px 0px -60px 0px", thre
     );
     io.observe(el);
     return () => io.disconnect();
-  }, [rootMargin, threshold]);
+  }, [el, rootMargin, threshold]);
 
-  return { ref, inView };
+  return { ref: setEl, inView };
+}
+
+const CARD =
+  "flex h-[140px] w-[240px] shrink-0 items-center justify-center border-r border-gray-200/70 px-8 " +
+  "sm:h-[170px] sm:w-[300px] lg:h-[200px] lg:w-[350px] lg:px-10";
+
+function BrandsSkeleton() {
+  return (
+    <section className="relative z-20 w-full overflow-visible bg-white" aria-busy="true">
+      <div className="w-full overflow-hidden border-y border-gray-200/70">
+        <div className="flex w-max">
+          {Array.from({ length: 8 }).map((_, i) => (
+            <div key={i} className={CARD}>
+              <div className="h-[50px] w-[150px] max-w-full animate-pulse rounded bg-gray-200/70 sm:h-[60px] sm:w-[180px] lg:h-[70px]" />
+            </div>
+          ))}
+        </div>
+      </div>
+    </section>
+  );
 }
 
 function Brands() {
-  // The section never moves and keeps the strip's height, so it is the reliable trigger
   const { ref, inView } = useInView<HTMLElement>();
 
+  const [brands, setBrands] = useState<Brand[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await api.get<ApiClientsPage | ApiClientsPage[]>(ENDPOINT);
+        if (cancelled) return;
+        setBrands(mapApiBrands(res.data));
+      } catch {
+        if (!cancelled) setBrands([]);
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  
+  const group = useMemo(() => {
+    if (!brands.length) return [];
+    const copies = Math.max(1, Math.ceil(MIN_GROUP_WIDTH / (MIN_CARD_WIDTH * brands.length)));
+    return Array.from({ length: copies }, (_, c) =>
+      brands.map((b) => ({ ...b, key: `${b.id}-${c}` }))
+    ).flat();
+  }, [brands]);
+
+  if (loading) return <BrandsSkeleton />;
+  if (!brands.length) return null;
+
+  const duration = group.length * SECONDS_PER_LOGO;
+
   return (
-    // overflow-visible + z-20: the strip starts OUTSIDE this box (over the footer)
-    // and slides up into place. No clipping.
-    <section ref={ref} className="relative z-20 w-full overflow-visible bg-white" aria-label="Our clients">
+    
+    <section
+      ref={ref}
+      className="relative z-20 w-full overflow-visible bg-white"
+      aria-label="Our clients"
+    >
       <style>{`
         /* animate.css fadeInUp: from one full element-height lower + transparent, to place */
         @keyframes brandsFadeInUp {
@@ -78,7 +164,9 @@ function Brands() {
           to   { transform: translate3d(-50%, 0, 0); }
         }
         .brands-track {
-          animation: brands-marquee 40s linear infinite;
+          animation-name: brands-marquee;
+          animation-timing-function: linear;
+          animation-iteration-count: infinite;
         }
 
         @media (prefers-reduced-motion: reduce) {
@@ -87,27 +175,30 @@ function Brands() {
         }
       `}</style>
 
-      {/* The whole strip: hidden until in view, then fadeInUp */}
       <div className={`bg-white ${inView ? "brands-fade-in-up" : "brands-hidden"}`}>
         <div className="relative w-full overflow-hidden border-y border-gray-200/70">
-          {/* The list is rendered twice, so moving it by -50% loops seamlessly */}
-          <div className="brands-track flex w-max">
-            {[...brands, ...brands].map((brand, i) => (
-              <div
-                key={`${brand.name}-${i}`}
-                className="flex h-[140px] w-[240px] shrink-0 items-center justify-center border-r border-gray-200/70 px-8
-                           sm:h-[170px] sm:w-[300px] lg:h-[200px] lg:w-[350px] lg:px-10"
-                aria-hidden={i >= brands.length}
-              >
-                <Image
-                  src={brand.src}
-                  alt={i < brands.length ? brand.name : ""}
-                  width={220}
-                  height={110}
-                  className="h-auto max-h-[70px] w-auto max-w-full object-contain sm:max-h-[85px] lg:max-h-[100px]"
-                />
-              </div>
-            ))}
+          <div
+            className="brands-track flex w-max"
+            style={{ animationDuration: `${duration}s` }}
+          >
+            {[0, 1].flatMap((copy) =>
+              group.map((brand) => (
+                <div
+                  key={`${brand.key}-${copy}`}
+                  className={CARD}
+                  aria-hidden={copy === 1 || !brand.key.endsWith("-0") ? true : undefined}
+                >
+                  <Image
+                    src={brand.logo}
+                    alt={copy === 0 && brand.key.endsWith("-0") ? brand.logoAlt : ""}
+                    width={220}
+                    height={110}
+                    unoptimized
+                    className="h-auto max-h-[70px] w-auto max-w-full object-contain sm:max-h-[85px] lg:max-h-[100px]"
+                  />
+                </div>
+              ))
+            )}
           </div>
         </div>
       </div>

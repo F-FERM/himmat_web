@@ -20,9 +20,40 @@ export default function CustomCursor() {
     let rafId: number | null = null;
     let isVisible = false;
     let currentTheme: CursorTheme = "white";
+    let isOnPointer = false;
 
+    /** Returns true when the element (or an ancestor) is a clickable/pointer target */
+    const isPointerElement = (el: HTMLElement | null): boolean => {
+      if (!el) return false;
+      let curr: HTMLElement | null = el;
+      for (let i = 0; i < 6 && curr && curr !== document.documentElement; i++) {
+        const tag = curr.tagName;
+        if (tag === "A" || tag === "BUTTON" || tag === "LABEL" || tag === "SELECT" || tag === "INPUT") {
+          return true;
+        }
+        if (curr.getAttribute("role") === "button" || curr.getAttribute("role") === "link") {
+          return true;
+        }
+        if (curr.hasAttribute("onClick") || typeof (curr as any).onclick === "function") {
+          return true;
+        }
+        try {
+          const computed = window.getComputedStyle(curr).cursor;
+          if (computed === "pointer") return true;
+        } catch {
+          // ignore
+        }
+        curr = curr.parentElement;
+      }
+      return false;
+    };
+
+    /** Returns true when the cursor is over an image or media element */
     const isImageUnderCursor = (el: HTMLElement | null): boolean => {
       if (!el) return false;
+      // If inside footer, footer's blue background takes precedence
+      if (el.closest("footer")) return false;
+
       if (
         el.tagName === "IMG" ||
         el.tagName === "PICTURE" ||
@@ -32,112 +63,131 @@ export default function CustomCursor() {
       ) {
         return true;
       }
+
       if (el.closest("picture, figure, [data-cursor-image]")) {
         return true;
       }
 
-      const style = window.getComputedStyle(el);
-      if (style.backgroundImage && style.backgroundImage !== "none") {
-        return true;
-      }
+      // Check if inside a slide or card with full image
+      const slide = el.closest(".hero-slide, [data-hero-slide]");
+      if (slide) return true;
 
-      const parent = el.parentElement;
-      if (parent) {
-        const parentStyle = window.getComputedStyle(parent);
-        if (parentStyle.backgroundImage && parentStyle.backgroundImage !== "none") {
+      // Check direct parent or self for next/image
+      let curr: HTMLElement | null = el;
+      for (let i = 0; i < 3 && curr && curr !== document.documentElement; i++) {
+        if (curr.querySelector(":scope > img, :scope > span > img")) {
           return true;
         }
-        if (parent.querySelector(":scope > img")) {
-          return true;
-        }
+        curr = curr.parentElement;
       }
 
       return false;
     };
 
-    const isYellowUnderCursor = (el: HTMLElement | null): boolean => {
-      if (!el) return false;
+    /** Accurately detects the background theme underneath the cursor */
+    const detectTheme = (el: HTMLElement | null): CursorTheme => {
+      if (!el) return "white";
+
+      // 1. Image check
+      if (isImageUnderCursor(el)) {
+        return "image";
+      }
+
+      // 2. Climb up ancestors to find the visible background
       let curr: HTMLElement | null = el;
-      for (let i = 0; i < 6 && curr && curr !== document.documentElement; i++) {
-        const style = window.getComputedStyle(curr);
-        const bg = style.backgroundColor;
-        const match = bg.match(/rgba?\((\d+),\s*(\d+),\s*(\d+)(?:,\s*([\d.]+))?\)/);
-        if (match) {
-          const r = parseInt(match[1], 10);
-          const g = parseInt(match[2], 10);
-          const b = parseInt(match[3], 10);
-          const a = match[4] !== undefined ? parseFloat(match[4]) : 1;
-          if (a > 0.15) {
-            // Yellow / Gold check: Red and Green are high, Blue is lower
-            if (r > 160 && g > 120 && b < 120 && r - b > 50 && g - b > 30) {
-              return true;
-            }
-            break;
-          }
-        }
+      for (let i = 0; i < 15 && curr && curr !== document.documentElement; i++) {
         const cls = typeof curr.className === "string" ? curr.className.toLowerCase() : "";
+
+        // Check explicit background classes (bg-, not text- or border-)
+        // Yellow / Amber / Gold backgrounds -> Blue dot
         if (
-          cls.includes("yellow") ||
-          cls.includes("amber") ||
-          cls.includes("gold") ||
-          cls.includes("daa732") ||
-          cls.includes("e0a82e")
+          cls.includes("bg-yellow") ||
+          cls.includes("bg-amber") ||
+          cls.includes("bg-gold") ||
+          cls.includes("bg-[#daa732]") ||
+          cls.includes("bg-[#e0a82e]") ||
+          cls.includes("bg-[#d4a22f]")
         ) {
-          return true;
+          return "yellow";
         }
-        curr = curr.parentElement;
-      }
-      return false;
-    };
 
-    const isBlueUnderCursor = (el: HTMLElement | null): boolean => {
-      if (!el) return false;
-      let curr: HTMLElement | null = el;
-      for (let i = 0; i < 6 && curr && curr !== document.documentElement; i++) {
-        const style = window.getComputedStyle(curr);
-        const bg = style.backgroundColor;
-        const match = bg.match(/rgba?\((\d+),\s*(\d+),\s*(\d+)(?:,\s*([\d.]+))?\)/);
-        if (match) {
-          const r = parseInt(match[1], 10);
-          const g = parseInt(match[2], 10);
-          const b = parseInt(match[3], 10);
-          const a = match[4] !== undefined ? parseFloat(match[4]) : 1;
-          if (a > 0.15) {
-            // Blue dominant check
-            if (b > 90 && b > r * 1.2 && b > g * 1.05) {
-              return true;
+        // Blue backgrounds -> Yellow dot
+        if (
+          cls.includes("bg-blue") ||
+          cls.includes("bg-sky") ||
+          cls.includes("bg-indigo") ||
+          cls.includes("bg-cyan") ||
+          cls.includes("bg-[#1b5287]") ||
+          cls.includes("bg-[#15497b]") ||
+          cls.includes("bg-[#195992]") ||
+          curr.tagName === "FOOTER"
+        ) {
+          return "blue";
+        }
+
+        // Dark backgrounds -> White dot
+        if (
+          cls.includes("bg-black") ||
+          cls.includes("bg-[#1a1a1a]") ||
+          cls.includes("bg-gray-900") ||
+          cls.includes("bg-zinc-900") ||
+          cls.includes("bg-slate-900")
+        ) {
+          return "dark";
+        }
+
+        // White / light backgrounds -> Black dot
+        if (
+          cls.includes("bg-white") ||
+          cls.includes("bg-[#ffffff]") ||
+          cls.includes("bg-[#f5f5f5]") ||
+          cls.includes("bg-[#fafafa]") ||
+          cls.includes("bg-gray-50")
+        ) {
+          return "white";
+        }
+
+        // Check computed backgroundColor if non-transparent
+        try {
+          const style = window.getComputedStyle(curr);
+          const bg = style.backgroundColor;
+          if (bg && bg !== "transparent" && bg !== "rgba(0, 0, 0, 0)") {
+            const match = bg.match(/rgba?\((\d+),\s*(\d+),\s*(\d+)(?:,\s*([\d.]+))?\)/);
+            if (match) {
+              const r = parseInt(match[1], 10);
+              const g = parseInt(match[2], 10);
+              const b = parseInt(match[3], 10);
+              const a = match[4] !== undefined ? parseFloat(match[4]) : 1;
+
+              if (a > 0.25) {
+                // Yellow / Gold check
+                if (r > 160 && g > 120 && b < 120 && r - b > 40 && g - b > 25) {
+                  return "yellow";
+                }
+                // Blue dominant check
+                if (b > 85 && b > r * 1.15 && b > g * 1.05) {
+                  return "blue";
+                }
+                // Dark check
+                if (r < 55 && g < 55 && b < 55) {
+                  return "dark";
+                }
+                // White / Light check
+                if (r > 180 && g > 180 && b > 180) {
+                  return "white";
+                }
+              }
             }
-            break;
           }
+        } catch {
+          // ignore
         }
-        const cls = typeof curr.className === "string" ? curr.className.toLowerCase() : "";
-        if (cls.includes("blue") || cls.includes("sky") || cls.includes("indigo") || cls.includes("cyan")) {
-          return true;
-        }
-        curr = curr.parentElement;
-      }
-      return false;
-    };
 
-    const isWhiteUnderCursor = (el: HTMLElement | null): boolean => {
-      if (!el) return true;
-      let curr: HTMLElement | null = el;
-      for (let i = 0; i < 6 && curr && curr !== document.documentElement; i++) {
-        const style = window.getComputedStyle(curr);
-        const bg = style.backgroundColor;
-        const match = bg.match(/rgba?\((\d+),\s*(\d+),\s*(\d+)(?:,\s*([\d.]+))?\)/);
-        if (match) {
-          const r = parseInt(match[1], 10);
-          const g = parseInt(match[2], 10);
-          const b = parseInt(match[3], 10);
-          const a = match[4] !== undefined ? parseFloat(match[4]) : 1;
-          if (a > 0.15) {
-            return r > 200 && g > 200 && b > 200;
-          }
-        }
         curr = curr.parentElement;
       }
-      return true;
+
+      // Default fallback is white screen -> black dot
+      return "white";
     };
 
     const render = () => {
@@ -146,26 +196,26 @@ export default function CustomCursor() {
         return;
       }
 
+      // Smooth position update
       cursor.style.left = `${mouseX}px`;
       cursor.style.top = `${mouseY}px`;
 
       const target = document.elementFromPoint(mouseX, mouseY) as HTMLElement | null;
 
       if (target) {
-        // Color / Theme check
-        let nextTheme: CursorTheme = "white";
-        if (isImageUnderCursor(target)) {
-          nextTheme = "image";
-        } else if (isYellowUnderCursor(target)) {
-          nextTheme = "yellow";
-        } else if (isBlueUnderCursor(target)) {
-          nextTheme = "blue";
-        } else if (isWhiteUnderCursor(target)) {
-          nextTheme = "white";
-        } else {
-          nextTheme = "dark";
+        // Pointer state: scales slightly on interactive targets, NEVER hides or blinks
+        const onPointer = isPointerElement(target);
+        if (onPointer !== isOnPointer) {
+          if (onPointer) {
+            cursor.classList.add("cursor-on-pointer");
+          } else {
+            cursor.classList.remove("cursor-on-pointer");
+          }
+          isOnPointer = onPointer;
         }
 
+        // Color theme check
+        const nextTheme = detectTheme(target);
         if (nextTheme !== currentTheme) {
           cursor.classList.remove(
             "cursor-on-image",

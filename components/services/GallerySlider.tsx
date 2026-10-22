@@ -1,64 +1,57 @@
 "use client";
 import type React from "react";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import Image from "next/image";
-import img1 from "../../public/images/home/Hero1.jpg";
-import img2 from "../../public/images/home/Hero2.jpg";
-import img3 from "../../public/images/home/Hero3.jpg";
-import img4 from "../../public/images/home/Hero4.jpg";
 
-const IMAGES = [
-  { src: img1, alt: "Light tower on site" },
-  { src: img2, alt: "Scissor lift and boom lift" },
-  { src: img3, alt: "Motor grader" },
-  { src: img4, alt: "Low-bed trailer" },
-];
+type GalleryImage = { src: string; alt: string };
 
-const INTERVAL_MS = 3000; // time between moves
-const SLIDE_MS = 800; // how long one move takes
+const INTERVAL_MS = 3000; 
+const SLIDE_MS = 800; 
+const MAX_VISIBLE = 4; 
 
-const total = IMAGES.length;
-// 4 copies: we always sit in the middle ones, so there is room to move both left and right
-const TRACK = [...IMAGES, ...IMAGES, ...IMAGES, ...IMAGES];
+function GallerySlider({ images }: { images: GalleryImage[] }) {
+ 
+  const { track, total } = useMemo(() => {
+    if (images.length === 0) return { track: [] as GalleryImage[], total: 0 };
+    const reps = Math.ceil(MAX_VISIBLE / images.length);
+    const base = Array.from({ length: reps }, () => images).flat();
+    return { track: [...base, ...base, ...base, ...base], total: base.length };
+  }, [images]);
 
-function GallerySlider() {
-  const [index, setIndex] = useState(total); // start on the first real copy
+  const [index, setIndex] = useState(total); 
   const [animate, setAnimate] = useState(true);
   const [paused, setPaused] = useState(false);
-  const [step, setStep] = useState(0); // width of one card + gap, in px
+  const [step, setStep] = useState(0); 
   const trackRef = useRef<HTMLDivElement>(null);
 
-  // Drag / swipe state
+  
   const [dragging, setDragging] = useState(false);
   const [dragX, setDragX] = useState(0);
   const startX = useRef(0);
-  const moved = useRef(false);
 
-  // Measure one step (card width + gap); re-measure on resize
+ 
   useEffect(() => {
-    const track = trackRef.current;
-    const first = track?.firstElementChild as HTMLElement | null;
-    if (!track || !first) return;
+    const el = trackRef.current;
+    const first = el?.firstElementChild as HTMLElement | null;
+    if (!el || !first) return;
 
     const measure = () => {
-      const gap = parseFloat(getComputedStyle(track).columnGap) || 0;
+      const gap = parseFloat(getComputedStyle(el).columnGap) || 0;
       setStep(first.getBoundingClientRect().width + gap);
     };
     measure();
     const ro = new ResizeObserver(measure);
     ro.observe(first);
     return () => ro.disconnect();
-  }, []);
+  }, [total]);
 
-  // Move one image to the left every INTERVAL_MS (timer restarts after any move or drag)
   useEffect(() => {
-    if (paused) return;
+    if (paused || total === 0) return;
     if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
     const id = setTimeout(() => setIndex((i) => i + 1), INTERVAL_MS);
     return () => clearTimeout(id);
-  }, [paused, index]);
+  }, [paused, index, total]);
 
-  // Stay inside the middle copies: silently jump by one full set when we leave them
   const handleTransitionEnd = (e: React.TransitionEvent<HTMLDivElement>) => {
     if (e.target !== e.currentTarget) return;
     if (index >= total * 2) {
@@ -75,11 +68,9 @@ function GallerySlider() {
     return () => cancelAnimationFrame(id);
   }, [animate]);
 
-  // ---- Drag / swipe (mouse + touch) ----
   const onPointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
     if (e.pointerType === "mouse" && e.button !== 0) return;
     startX.current = e.clientX;
-    moved.current = false;
     setDragging(true);
     setPaused(true);
     e.currentTarget.setPointerCapture(e.pointerId);
@@ -87,9 +78,7 @@ function GallerySlider() {
 
   const onPointerMove = (e: React.PointerEvent<HTMLDivElement>) => {
     if (!dragging) return;
-    const dx = e.clientX - startX.current;
-    if (Math.abs(dx) > 6) moved.current = true;
-    setDragX(dx);
+    setDragX(e.clientX - startX.current);
   };
 
   const endDrag = (e: React.PointerEvent<HTMLDivElement>) => {
@@ -97,13 +86,15 @@ function GallerySlider() {
     setDragging(false);
     const threshold = Math.max(40, step * 0.15);
     let delta = 0;
-    if (dragX < -threshold) delta = Math.max(1, Math.round(-dragX / step)); // dragged left -> next
-    if (dragX > threshold) delta = -Math.max(1, Math.round(dragX / step)); // dragged right -> previous
+    if (dragX < -threshold) delta = Math.max(1, Math.round(-dragX / step));
+    if (dragX > threshold) delta = -Math.max(1, Math.round(dragX / step));
     delta = Math.max(-2, Math.min(2, delta));
     setIndex((i) => i + delta);
     setDragX(0);
-    if (e.pointerType !== "mouse") setPaused(false); // touch has no "mouse leave"
+    if (e.pointerType !== "mouse") setPaused(false);
   };
+
+  if (total === 0) return null;
 
   return (
     <section className="w-full overflow-x-clip bg-[#F5F5F5] py-10 sm:py-14 2xl:pb-[82px] 2xl:pt-[69px]">
@@ -118,7 +109,6 @@ function GallerySlider() {
         onPointerUp={endDrag}
         onPointerCancel={endDrag}
       >
-        {/* Images per screen: 1 / 2 / 3 / 4, gap 16 -> 20px */}
         <div
           ref={trackRef}
           onTransitionEnd={handleTransitionEnd}
@@ -128,17 +118,18 @@ function GallerySlider() {
             transition: animate && !dragging ? `transform ${SLIDE_MS}ms ease-in-out` : "none",
           }}
         >
-          {TRACK.map((img, i) => (
+          {track.map((img, i) => (
             <div
               key={i}
               aria-hidden={i < total || i >= total * 2 ? true : undefined}
-              className="relative aspect-[8/7] shrink-0 overflow-hidden rounded-[14px]"
+              className="relative aspect-[8/7] shrink-0 overflow-hidden rounded-[14px] bg-[#E5E5E5]"
               style={{ width: "calc((100% - (var(--n) - 1) * var(--gap)) / var(--n))" }}
             >
               <Image
                 src={img.src}
                 alt={img.alt}
                 fill
+                unoptimized
                 draggable={false}
                 sizes="(min-width: 1536px) 18vw, (min-width: 1280px) 20vw, (min-width: 1024px) 28vw, (min-width: 640px) 45vw, 90vw"
                 className="object-cover"

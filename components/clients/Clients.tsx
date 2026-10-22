@@ -1,79 +1,195 @@
+"use client";
+import api from "@/lib/axios";
 import Image from "next/image";
-import Client1 from "../../public/images/clients/client1.jpg"
-import Client2 from "../../public/images/clients/client2.jpg"
-import Client3 from "../../public/images/clients/client3.jpg"
-import Client4 from "../../public/images/clients/client4.jpg"
-import Client5 from "../../public/images/clients/client5.jpg"
-import Client6 from "../../public/images/clients/client6.jpg"
-import Client7 from "../../public/images/clients/client7.jpg"
-import Client8 from "../../public/images/clients/client8.jpg"
-import Client9 from "../../public/images/clients/client9.jpg"
-import Client10 from "../../public/images/clients/client10.jpg"
-import Client11 from "../../public/images/clients/client11.jpg"
-import Client12 from "../../public/images/clients/client12.jpg"
-import Client13 from "../../public/images/clients/client13.jpg"
-import Client14 from "../../public/images/clients/client14.jpg"
-import Client15 from "../../public/images/clients/client15.jpg"
-import Client16 from "../../public/images/clients/client16.jpg"
-import Client17 from "../../public/images/clients/client17.jpg"
-import Client18 from "../../public/images/clients/client18.jpg"
-import Client19 from "../../public/images/clients/client19.jpg"
-import Client20 from "../../public/images/clients/client20.jpg"
+import Link from "next/link";
+import { useEffect, useState } from "react";
 
-// Put the logo files in /public/images/clients/ (png, svg, webp... just keep the extension in sync here)
-const CLIENTS = [
-  { name: "Aramco", src: Client1 },
-  { name: "SABIC", src: Client2 },
-  { name: "Saline Water Conversion Corporation", src: Client3 },
-  { name: "Marafiq", src: Client4 },
-  { name: "BFIM Trading Division", src: Client5 },
-  { name: "NHME Group", src: Client6 },
-  { name: "Saudi Electricity Company", src: Client7 },
-  { name: "Kingdom of Saudi Arabia", src: Client8 },
-  { name: "Wison", src: Client9 },
-  { name: "Red Sea Global", src: Client10 },
-  { name: "Doosan", src: Client11 },
-  { name: "Hanwha", src: Client12 },
-  { name: "Samsung C&T", src: Client13 },
-  { name: "SASREF", src: Client14 },
-  { name: "SEPCO", src: Client15 },
-  { name: "Sinohydro", src: Client16 },
-  { name: "Sipchem", src: Client17 },
-  { name: "SK E&C", src: Client18 },
-  { name: "Tiejun", src: Client19 },
-  { name: "Archirodon", src: Client20 },
-];
+// ================= API =================
+const ENDPOINT = "/clients-page";
+const IMAGE_BASE_URL = process.env.NEXT_PUBLIC_BASE_URL || "";
+
+type ApiClient = {
+  _id?: string;
+  name: string;
+  logo: string;
+  logoAlt?: string;
+  link?: string;
+  order?: number;
+};
+
+type ApiClientsPage = { clients?: ApiClient[] };
+
+type Client = {
+  id: string;
+  name: string;
+  logo: string;
+  logoAlt: string;
+  href: string | null; 
+  external: boolean;
+};
+
+function resolveImage(path: string): string {
+  if (!path) return "";
+  if (path.startsWith("http") || path.startsWith("data:")) return path;
+  return `${IMAGE_BASE_URL}${path.startsWith("/") ? path : `/${path}`}`;
+}
+
+
+function parseLink(link?: string): { href: string | null; external: boolean } {
+  const l = (link ?? "").trim();
+  if (!l || l === "#") return { href: null, external: false };
+  if (/^https?:\/\//i.test(l)) return { href: l, external: true };
+  return { href: l.startsWith("/") ? l : `/${l}`, external: false };
+}
+
+function mapApiClients(
+  data: ApiClientsPage | ApiClientsPage[] | null | undefined
+): Client[] {
+  const doc = Array.isArray(data) ? data[0] : data;
+  return [...(doc?.clients ?? [])]
+    .sort((a, b) => (a.order ?? 0) - (b.order ?? 0))
+    .filter((c) => Boolean(c.logo) && Boolean(c.name))
+    .map((c, i) => {
+      const { href, external } = parseLink(c.link);
+      return {
+        id: c._id || `${c.name}-${i}`,
+        name: c.name,
+        logo: resolveImage(c.logo),
+        logoAlt: c.logoAlt || c.name,
+        href,
+        external,
+      };
+    });
+}
+
+const SECTION =
+  "w-full overflow-x-clip bg-white py-10 sm:py-14 lg:py-16 2xl:pb-[89px] 2xl:pt-[70px]";
+
+const GRID =
+  "grid grid-cols-2 gap-3 px-4 " +
+  "sm:grid-cols-3 sm:gap-4 sm:px-8 " +
+  "lg:grid-cols-4 lg:gap-5 lg:px-12 " +
+  "xl:grid-cols-6 xl:px-[8%] " +
+  "2xl:ml-[15%] 2xl:mr-[14.9%] 2xl:gap-x-[1.87%] 2xl:px-0";
+
+const CARD =
+  "relative block aspect-[203/107] bg-[#FDFDFD] shadow-[0_0_30px_rgba(0,0,0,0.06)]";
+
+function ClientsSkeleton() {
+  return (
+    <section className={SECTION} aria-busy="true">
+      <div className="mx-auto max-w-[1920px]">
+        <ul className={GRID}>
+          {Array.from({ length: 12 }).map((_, i) => (
+            <li key={i} className={`${CARD} animate-pulse bg-[#E9EEF4]`}>
+              <div className="absolute inset-0 p-4 sm:p-5 2xl:p-[10%]">
+                <div className="h-full w-full bg-white/50" />
+              </div>
+            </li>
+          ))}
+        </ul>
+      </div>
+    </section>
+  );
+}
+
+function ClientCard({ client }: { client: Client }) {
+  const logo = (
+    <div className="absolute inset-0 p-4 sm:p-5 2xl:p-[10%]">
+      <div className="relative h-full w-full">
+        <Image
+          src={client.logo}
+          alt={client.logoAlt}
+          fill
+          sizes="(min-width: 1280px) 15vw, (min-width: 1024px) 22vw, (min-width: 640px) 30vw, 45vw"
+          unoptimized
+          className="object-contain"
+        />
+      </div>
+    </div>
+  );
+
+  // No link => plain card
+  if (!client.href) {
+    return <div className={CARD}>{logo}</div>;
+  }
+
+  const linked =
+    `${CARD} transition-shadow duration-300 hover:shadow-[0_0_36px_rgba(0,0,0,0.12)] ` +
+    "focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#1B5B96]";
+
+  // External link
+  if (client.external) {
+    return (
+      <a
+        href={client.href}
+        target="_blank"
+        rel="noopener noreferrer"
+        aria-label={`${client.name} (opens in a new tab)`}
+        className={linked}
+      >
+        {logo}
+      </a>
+    );
+  }
+
+  // Internal link
+  return (
+    <Link href={client.href} aria-label={client.name} className={linked}>
+      {logo}
+    </Link>
+  );
+}
 
 function Clients() {
+  const [clients, setClients] = useState<Client[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await api.get<ApiClientsPage | ApiClientsPage[]>(ENDPOINT);
+        if (cancelled) return;
+        setClients(mapApiClients(res.data));
+      } catch {
+        if (!cancelled) setError(true);
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  if (loading) return <ClientsSkeleton />;
+
+  // Error / empty state
+  if (error || clients.length === 0) {
+    return (
+      <section className={SECTION}>
+        <p className="px-4 text-center text-sm text-[#666] sm:text-base">
+          {error
+            ? "We couldn’t load our clients right now. Please try again later."
+            : "Our client list will be available soon."}
+        </p>
+      </section>
+    );
+  }
+
   return (
-    <section className="w-full overflow-x-clip bg-white py-10 sm:py-14 2xl:pb-[89px] 2xl:pt-[70px]">
-      <ul
-        className="grid grid-cols-2 gap-3 px-5
-                   sm:grid-cols-3 sm:gap-4 sm:px-8
-                   lg:grid-cols-4 lg:gap-5 lg:px-12
-                   xl:grid-cols-6 xl:gap-x-5 xl:gap-y-5 xl:px-[8%]
-                   2xl:ml-[15%] 2xl:mr-[14.9%] 2xl:gap-x-[1.87%] 2xl:px-0"
-      >
-        {CLIENTS.map((client) => (
-          <li
-            key={client.name}
-            className="relative aspect-[203/107] bg-[#FDFDFD] shadow-[0_0_30px_rgba(0,0,0,0.06)]"
-          >
-            {/* Logo (image), kept inside the card with some breathing room */}
-            <div className="absolute inset-0 p-4 sm:p-5 2xl:p-[10%]">
-              <div className="relative h-full w-full">
-                <Image
-                  src={client.src}
-                  alt={client.name}
-                  fill
-                  sizes="(min-width: 1280px) 15vw, (min-width: 1024px) 22vw, (min-width: 640px) 30vw, 45vw"
-                  className="object-contain"
-                />
-              </div>
-            </div>
-          </li>
-        ))}
-      </ul>
+    <section className={SECTION}>
+      <div className="mx-auto max-w-[1920px]">
+        <ul className={GRID}>
+          {clients.map((client) => (
+            <li key={client.id}>
+              <ClientCard client={client} />
+            </li>
+          ))}
+        </ul>
+      </div>
     </section>
   );
 }

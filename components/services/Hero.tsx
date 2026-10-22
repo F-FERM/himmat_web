@@ -12,14 +12,30 @@ type Crumb = { label: string; href: string };
 
 type PageBannerProps = {
   title?: string;
-  image?: StaticImageData;
+  image?: StaticImageData | string;
   breadcrumbs?: Crumb[];
 };
 
-/**
- * Inner-page banner. Reusable: pass a different title / image / breadcrumbs per page, e.g.
- * <PageBanner title="Gypsum Works" image={gypsumImg} breadcrumbs={[{label:"Home",href:"/"},{label:"Services",href:"/services"}]} />
- */
+const SECTION =
+  "relative flex w-full items-end overflow-hidden bg-black text-white " +
+  "min-h-[340px] pt-[70px] " +
+  "sm:min-h-[420px] sm:pt-[80px] " +
+  "md:pt-[90px] " +
+  "lg:min-h-[500px] lg:pt-[105px] " +
+  "xl:min-h-[630px] xl:pt-[125px]";
+
+const OUTER = "relative mx-auto flex w-full max-w-[1920px]";
+
+const CONTENT =
+  "flex min-w-0 flex-1 flex-col items-start gap-3 px-4 pb-10 " +
+  "sm:px-8 sm:pb-14 " +
+  "md:flex-row md:items-center md:justify-between md:gap-8 " +
+  "lg:px-12 lg:pb-20 " +
+  "xl:px-[8%] xl:pb-24 " +
+  "2xl:ml-[15%] 2xl:mr-[14.6%] 2xl:px-0 2xl:pb-[115px]";
+const IMG_AREA =
+  "absolute inset-x-0 bottom-0 top-[70px] sm:top-[80px] md:top-[90px] lg:top-[105px] xl:top-[125px]";
+
 function PageBanner({
   title = "Equipment Rental",
   image = defaultBanner,
@@ -28,58 +44,63 @@ function PageBanner({
     { label: "Services", href: "/services" },
   ],
 }: PageBannerProps) {
+  const isRemote = typeof image === "string";
+
   return (
-    <section
-      className={`${manrope.className} relative flex w-full items-end overflow-hidden bg-black text-white
-                  min-h-[380px] pt-[70px]
-                  sm:min-h-[420px] sm:pt-[80px]
-                  md:pt-[90px]
-                  lg:min-h-[500px] lg:pt-[105px]
-                  xl:min-h-[630px] xl:pt-[125px]`}
-    >
-      {/* Background image + dark overlay */}
-      <Image src={image} alt="" fill priority sizes="100vw" className="object-cover" aria-hidden="true" />
-      <div className="absolute inset-0 bg-black/25" />
+    <section className={`${manrope.className} ${SECTION}`}>
+        <div className={IMG_AREA}>
+    {(!isRemote || image) && (
+      <Image
+        src={image}
+        alt=""
+        fill
+        priority
+        sizes="100vw"
+        unoptimized={isRemote}
+        className="object-cover"
+        aria-hidden="true"
+      />
+    )}
+    <div className="absolute inset-0 bg-black/25" />
+  </div>
+
 
       {/* Content */}
-      <div
-        className="relative flex min-w-0 flex-1 flex-col items-start gap-4 px-5 pb-12
-                   sm:px-8 sm:pb-16
-                   md:flex-row md:items-center md:justify-between md:gap-8
-                   lg:px-12 lg:pb-20
-                   xl:px-[8%] xl:pb-24
-                   2xl:ml-[15%] 2xl:mr-[14.6%] 2xl:px-0 2xl:pb-[115px]"
-      >
-        {/* Title: fadeInUp */}
-        <h1
-          className="fade-in-up text-3xl font-medium leading-[1.15] tracking-[-0.02em] sm:text-4xl lg:text-[44px] 2xl:text-[clamp(38px,2.3vw,46px)]"
-        >
-          {title}
-        </h1>
+      <div className={OUTER}>
+        <div className={CONTENT}>
+          {/* Title: fadeInUp */}
+          <h1 className="fade-in-up min-w-0 break-words text-[28px] font-medium leading-[1.15] tracking-[-0.02em] sm:text-4xl lg:text-[44px] 2xl:text-[clamp(38px,2.3vw,46px)]">
+            {title}
+          </h1>
 
-        {/* Breadcrumb: fadeInUp, a little later */}
-        <nav
-          aria-label="Breadcrumb"
-          className="fade-in-up flex items-center text-sm sm:text-base"
-          style={{ animationDelay: "0.25s" }}
-        >
-          {breadcrumbs.map((crumb) => (
-            <span key={crumb.label} className="flex items-center">
-              <Link href={crumb.href} className="hover:underline">
-                {crumb.label}
-              </Link>
-              <span aria-hidden="true" className="ml-5 mr-3 text-xs">
-                /
+          {/* Breadcrumb: fadeInUp, a little later */}
+          <nav
+            aria-label="Breadcrumb"
+            className="fade-in-up flex shrink-0 flex-wrap items-center text-sm sm:text-base"
+            style={{ animationDelay: "0.25s" }}
+          >
+            {breadcrumbs.map((crumb, i) => (
+              <span key={`${crumb.href}-${i}`} className="flex items-center">
+                <Link
+                  href={crumb.href}
+                  aria-current={i === breadcrumbs.length - 1 ? "page" : undefined}
+                  className="hover:underline focus-visible:underline"
+                >
+                  {crumb.label}
+                </Link>
+                <span aria-hidden="true" className="ml-4 mr-2.5 text-xs sm:ml-5 sm:mr-3">
+                  /
+                </span>
               </span>
-            </span>
-          ))}
-        </nav>
+            ))}
+          </nav>
+        </div>
       </div>
 
       {/* fadeInUp (same as animate.css) */}
       <style>{`
         @keyframes fadeInUp {
-          from { opacity: 0; transform: translate3d(0, 100%, 0); }
+          from { opacity: 0; transform: translate3d(0, 60px, 0); }
           to   { opacity: 1; transform: translate3d(0, 0, 0); }
         }
         .fade-in-up {
@@ -90,6 +111,22 @@ function PageBanner({
         }
         @media (prefers-reduced-motion: reduce) { .fade-in-up { animation: none; } }
       `}</style>
+    </section>
+  );
+}
+
+export function PageBannerSkeleton() {
+  return (
+    <section className={`${manrope.className} ${SECTION}`}>
+      <div className="absolute inset-0 bg-[#1a1a1a]" />
+      <div className="absolute inset-0 bg-black/25" />
+
+      <div className={OUTER}>
+        <div className={CONTENT}>
+          <div className="h-9 w-48 animate-pulse rounded bg-white/20 sm:h-11 sm:w-64 lg:h-[52px] lg:w-80" />
+          <div className="h-5 w-32 animate-pulse rounded bg-white/20 sm:h-6 sm:w-40" />
+        </div>
+      </div>
     </section>
   );
 }

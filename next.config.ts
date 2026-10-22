@@ -5,6 +5,7 @@ const nextConfig: NextConfig = {
   experimental: {
     agentFeedback: true,
   },
+  devIndicators: false,
   cacheComponents: true,
   partialPrefetching: true,
   turbopack: {
@@ -14,6 +15,15 @@ const nextConfig: NextConfig = {
         as: "*.css",
       },
     },
+  },
+  async redirects() {
+    return [
+      {
+        source: "/company-profile",
+        destination: "/profilepdf/profile.pdf",
+        permanent: false,
+      },
+    ];
   },
 };
 

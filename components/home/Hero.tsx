@@ -1,53 +1,121 @@
 "use client";
-import { useCallback, useState } from "react";
+import api from "@/lib/axios";
+import { Manrope } from "next/font/google";
 import Image from "next/image";
 import Link from "next/link";
-import { Manrope } from "next/font/google";
-import image1 from "../../public/images/home/Hero1.jpg";
-import image2 from "../../public/images/home/Hero2.jpg";
-import image3 from "../../public/images/home/Hero3.jpg";
-import image4 from "../../public/images/home/Hero4.jpg";
+import { useCallback, useEffect, useMemo, useState } from "react";
 
 const manrope = Manrope({
   subsets: ["latin"],
   weight: ["400", "500", "600"],
 });
 
-// Edit images and text here
-const SLIDES = [
+// ================= API =================
+const ENDPOINT = "/home-page";
+const IMAGE_BASE_URL = process.env.NEXT_PUBLIC_BASE_URL || "";
+
+type ApiInlineLink = {
+  text: string;
+  url: string;
+  type: string;
+  openInNewTab: boolean;
+  position: number;
+};
+
+type ApiHeroSlide = {
+  _id?: string;
+  subtitle: string;
+  title: string;
+  description: string;
+  image: string;
+  imageAlt?: string;
+  readMoreLink?: string;
+  readMoreText?: string;
+  order?: number;
+  inlineLinks?: ApiInlineLink[];
+};
+
+type ApiHomePage = {
+  heroSlides?: ApiHeroSlide[];
+};
+
+type Slide = {
+  image: string;
+  imageAlt: string;
+  subtitle: string;
+  title: string;
+  description: string;
+  href: string;
+  readMoreText: string;
+};
+
+const FALLBACK_SLIDES: Slide[] = [
   {
-    image: image1,
+    image: "/images/home/Hero1.jpg",
+    imageAlt: "Engineering & Construction Excellence",
     subtitle: "Integrated Project Solutions",
     title: "Engineering & Construction Excellence",
     description:
       "Delivering reliable engineering and construction solutions with quality workmanship, timely execution, and lasting value.",
     href: "/services",
+    readMoreText: "Read More",
   },
   {
-    image: image2,
+    image: "/images/home/Hero2.jpg",
+    imageAlt: "Lifting Equipment You Can Trust",
     subtitle: "Heavy Lifting Specialists",
     title: "Lifting Equipment You Can Trust",
     description:
       "Certified lifting equipment and accessories supplied to industrial, infrastructure, and construction sites across the Kingdom.",
     href: "/services",
+    readMoreText: "Read More",
   },
   {
-    image: image3,
+    image: "/images/home/Hero3.jpg",
+    imageAlt: "Supporting Projects Across Saudi Arabia",
     subtitle: "Built for the Kingdom",
     title: "Supporting Projects Across Saudi Arabia",
     description:
       "From supply to site support, we help teams keep complex projects safe, on schedule, and on budget.",
     href: "/projects",
+    readMoreText: "Read More",
   },
   {
-    image: image4,
+    image: "/images/home/Hero4.jpg",
+    imageAlt: "Equipment Rental For Every Project",
     subtitle: "Reliable Equipment Solutions",
     title: "Equipment Rental For Every Project",
     description:
       "High-performance equipment rentals supporting construction, industrial, and infrastructure projects with maximum efficiency.",
     href: "/services",
+    readMoreText: "Read More",
   },
 ];
+
+function resolveImage(path: string): string {
+  if (!path) return "";
+  if (path.startsWith("http") || path.startsWith("data:")) return path;
+  return `${IMAGE_BASE_URL}${path.startsWith("/") ? path : `/${path}`}`;
+}
+
+function mapApiSlides(data: ApiHomePage | ApiHomePage[] | null | undefined): Slide[] {
+  const doc = Array.isArray(data) ? data[0] : data;
+  const slides = doc?.heroSlides ?? [];
+  if (!slides.length) return [];
+
+  return [...slides]
+    .sort((a, b) => (a.order ?? 0) - (b.order ?? 0))
+    .filter((s) => Boolean(s.image))
+    .map((s) => ({
+      image: resolveImage(s.image),
+      imageAlt: s.imageAlt || s.title || "Hero slide",
+      subtitle: s.subtitle || "",
+      title: s.title || "",
+      description: s.description || "",
+      href: s.readMoreLink || "/services",
+      readMoreText: s.readMoreText || "Read More",
+    }));
+}
 
 function ChevronIcon({ dir }: { dir: "left" | "right" }) {
   return (
@@ -62,13 +130,49 @@ function ChevronIcon({ dir }: { dir: "left" | "right" }) {
 }
 
 function Hero() {
+  const [apiSlides, setApiSlides] = useState<Slide[] | null>(null);
   const [current, setCurrent] = useState(0);
-  const total = SLIDES.length;
 
-  const next = useCallback(() => setCurrent((c) => (c + 1) % total), [total]);
-  const prev = useCallback(() => setCurrent((c) => (c - 1 + total) % total), [total]);
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await api.get<ApiHomePage | ApiHomePage[]>(ENDPOINT);
+        if (cancelled) return;
+        const mapped = mapApiSlides(res.data);
+        setApiSlides(mapped.length ? mapped : null);
+      } catch {
+        if (!cancelled) setApiSlides(null); 
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
-  const slide = SLIDES[current];
+  const slides = useMemo<Slide[]>(
+    () => (apiSlides && apiSlides.length ? apiSlides : FALLBACK_SLIDES),
+    [apiSlides],
+  );
+
+  const total = slides.length;
+  const safeCurrent = total ? current % total : 0;
+  const slide = slides[safeCurrent];
+
+  const next = useCallback(
+    () => setCurrent((c) => (total ? (c + 1) % total : 0)),
+    [total],
+  );
+  const prev = useCallback(
+    () => setCurrent((c) => (total ? (c - 1 + total) % total : 0)),
+    [total],
+  );
+
+  useEffect(() => {
+    if (current >= total && total > 0) setCurrent(0);
+  }, [total, current]);
+
+  if (!slide) return null;
 
   const arrowClass =
     "flex h-11 w-11 items-center justify-center rounded-full bg-[#ffffff1a] text-white backdrop-blur-[5px] " +
@@ -79,16 +183,17 @@ function Hero() {
       className={`${manrope.className} relative w-full overflow-hidden bg-black text-white min-h-[100svh]`}
     >
       {/* Background images (cross-fade) */}
-      {SLIDES.map((s, i) => (
+      {slides.map((s, i) => (
         <Image
-          key={i}
+          key={`${s.image}-${i}`}
           src={s.image}
-          alt={s.title}
+          alt={s.imageAlt}
           fill
           priority={i === 0}
           sizes="100vw"
+          unoptimized
           className={`object-cover transition-opacity duration-1000 ease-in-out ${
-            i === current ? "opacity-100" : "opacity-0"
+            i === safeCurrent ? "opacity-100" : "opacity-0"
           }`}
         />
       ))}
@@ -98,7 +203,10 @@ function Hero() {
 
       {/* Content */}
       <div className="relative mx-auto flex min-h-[100svh] w-full max-w-[1584px] flex-col justify-end px-5 pb-10 pt-32 sm:px-8 sm:pb-14 md:pb-20 lg:px-10 lg:pb-24 xl:px-12 xl:pb-[120px] 2xl:px-0">
-        <div key={current} className="hero-anim grid grid-cols-1 gap-y-6 md:grid-cols-[1fr_auto] md:gap-x-10 md:gap-y-8">
+        <div
+          key={safeCurrent}
+          className="hero-anim grid grid-cols-1 gap-y-6 md:grid-cols-[1fr_auto] md:gap-x-10 md:gap-y-8"
+        >
           {/* Subtitle + title */}
           <div className="order-1 md:col-start-1 md:row-start-1 md:self-end">
             <p className="text-base font-normal sm:text-xl lg:text-2xl">{slide.subtitle}</p>
@@ -114,7 +222,7 @@ function Hero() {
               className="group inline-flex items-center gap-3 bg-[#E0A82E] px-5 py-3.5 text-sm font-medium text-white
                          transition-colors duration-300 hover:bg-white hover:text-black sm:text-base md:order-2 md:mb-1"
             >
-              Read More
+              {slide.readMoreText}
               <svg
                 width="16"
                 height="16"
